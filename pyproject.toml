@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "visionguard-ai"
+version = "0.1.0"
+description = "Industrial visual anomaly detection with PatchCore and MVTec AD 2"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+license = { text = "MIT" }
+authors = [{ name = "VisionGuard AI Team" }]
+dependencies = [
+  "anomalib>=2.0,<3.0",
+  "numpy>=1.26,<3",
+  "opencv-python-headless>=4.9,<5",
+  "pyyaml>=6.0,<7",
+  "rich>=13.7,<15",
+  "typer>=0.12,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.10,<2",
+  "pytest>=8.2,<9",
+  "pytest-cov>=5,<7",
+  "ruff>=0.6,<1",
+]
+
+[project.scripts]
+visionguard = "visionguard.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/visionguard"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers --basetemp=work/pytest --cov=visionguard --cov-report=term-missing"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["visionguard"]
+follow_imports = "skip"
+disable_error_code = ["untyped-decorator"]
+
+[[tool.mypy.overrides]]
+module = ["yaml"]
+ignore_missing_imports = true

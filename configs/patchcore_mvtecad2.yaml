@@ -1,0 +1,26 @@
+project:
+  name: visionguard-ai
+  seed: 42
+
+data:
+  root: data/mvtecad2
+  category: sheet_metal
+  image_size: [256, 256]
+  train_batch_size: 8
+  eval_batch_size: 8
+  num_workers: 4
+
+model:
+  backbone: wide_resnet50_2
+  layers: [layer2, layer3]
+  coreset_sampling_ratio: 0.1
+  num_neighbors: 9
+
+runtime:
+  accelerator: auto
+  devices: 1
+  output_dir: artifacts
+  log_level: INFO
+
+decision:
+  threshold: null
