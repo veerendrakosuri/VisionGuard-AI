@@ -51,7 +51,7 @@ python -m mypy src
 # Build the PatchCore memory bank and checkpoint
 visionguard train --config configs/patchcore_mvtecad2.yaml
 
-# Evaluate the newest checkpoint
+# Evaluate the newest checkpoint and save artifacts/evaluation_metrics.json
 visionguard evaluate --config configs/patchcore_mvtecad2.yaml
 
 # Inspect one image (writes result.json and heatmap_overlay.png)
@@ -79,6 +79,8 @@ artifacts/                Checkpoints, metrics, and logs (ignored)
 The YAML file is the source of truth for an experiment. Keep the exact config and Git commit hash
 with reported results. PatchCore is primarily a feature-memory method rather than a conventional
 gradient-trained network; “training” builds its representative memory bank from normal images.
+The checked-in configuration uses a 1% coreset so Week 1 can be completed on CPU. A benchmark run
+on a suitable GPU should restore `coreset_sampling_ratio: 0.1` for the standard PatchCore baseline.
 
 ## Definition of done for Week 1
 
@@ -87,3 +89,6 @@ gradient-trained network; “training” builds its representative memory bank f
 3. `visionguard evaluate` prints image- and pixel-level metrics supplied by Anomalib.
 4. `visionguard predict` writes a JSON result for a known good and defective image.
 5. Tests and lint checks pass before committing.
+
+The completed CPU baseline and its measured metrics are recorded in
+[`reports/week1_results.md`](reports/week1_results.md).

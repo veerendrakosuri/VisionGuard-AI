@@ -11,9 +11,15 @@ from visionguard.config import AppConfig
 
 def require_anomalib() -> tuple[Any, Any, Any]:
     """Import heavyweight runtime dependencies with an actionable error."""
-    matplotlib_cache = Path("work/matplotlib").resolve()
-    matplotlib_cache.mkdir(parents=True, exist_ok=True)
-    os.environ.setdefault("MPLCONFIGDIR", str(matplotlib_cache))
+    cache_root = Path("work").resolve()
+    cache_directories = {
+        "MPLCONFIGDIR": cache_root / "matplotlib",
+        "HF_HOME": cache_root / "huggingface",
+        "TORCH_HOME": cache_root / "torch",
+    }
+    for environment_variable, cache_directory in cache_directories.items():
+        cache_directory.mkdir(parents=True, exist_ok=True)
+        os.environ.setdefault(environment_variable, str(cache_directory))
     try:
         from anomalib.data import MVTecAD2
         from anomalib.engine import Engine

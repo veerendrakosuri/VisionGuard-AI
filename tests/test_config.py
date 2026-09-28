@@ -9,7 +9,7 @@ def test_default_config_loads() -> None:
     config = load_config(Path("configs/patchcore_mvtecad2.yaml"))
     assert config.name == "visionguard-ai"
     assert config.data.image_size == (256, 256)
-    assert config.model.coreset_sampling_ratio == 0.1
+    assert config.model.coreset_sampling_ratio == 0.01
 
 
 def test_invalid_coreset_ratio_is_rejected(tmp_path: Path) -> None:

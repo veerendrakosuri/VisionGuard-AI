@@ -34,14 +34,23 @@ def train(config_path: ConfigOption = Path("configs/patchcore_mvtecad2.yaml")) -
 
 
 @app.command()
-def evaluate(config_path: ConfigOption = Path("configs/patchcore_mvtecad2.yaml")) -> None:
+def evaluate(
+    config_path: ConfigOption = Path("configs/patchcore_mvtecad2.yaml"),
+    output: Annotated[Path, typer.Option("--output", "-o")] = Path(
+        "artifacts/evaluation_metrics.json"
+    ),
+) -> None:
     """Evaluate the most recent checkpoint on the test split."""
     config, logger = _setup(config_path)
     datamodule, model, engine = build_components(config)
     checkpoint = find_checkpoint(config.runtime.output_dir)
     logger.info("Evaluating checkpoint=%s", checkpoint)
     metrics = engine.test(model=model, datamodule=datamodule, ckpt_path=str(checkpoint))
-    print(json.dumps(metrics, indent=2, default=str))
+    serialized = json.dumps(metrics, indent=2, default=str)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(serialized, encoding="utf-8")
+    logger.info("Evaluation metrics saved to %s", output)
+    print(serialized)
 
 
 @app.command()
@@ -97,13 +106,17 @@ def _summarize(predictions: Any, threshold: float | None = None) -> dict[str, An
                 value = value.detach().cpu().tolist()
             if isinstance(value, (list, tuple)):
                 value = [str(item) if isinstance(item, Path) else item for item in value]
+                if len(value) == 1:
+                    value = value[0]
             summary[name] = str(value) if isinstance(value, Path) else value
-    if threshold is not None and "pred_score" in summary:
-        raw_score = summary["pred_score"]
-        score = raw_score[0] if isinstance(raw_score, list) else raw_score
-        if isinstance(score, (int, float)):
-            summary["threshold"] = threshold
-            summary["decision"] = "FAIL" if score >= threshold else "PASS"
+    score = summary.get("pred_score")
+    if threshold is not None and isinstance(score, (int, float)):
+        summary["threshold"] = threshold
+        summary["decision"] = "FAIL" if score >= threshold else "PASS"
+        summary["decision_source"] = "configured_threshold"
+    elif isinstance(summary.get("pred_label"), bool):
+        summary["decision"] = "FAIL" if summary["pred_label"] else "PASS"
+        summary["decision_source"] = "model_threshold"
     return summary or {"status": "prediction_completed"}
 
 
