@@ -25,3 +25,12 @@ runtime:
 
 decision:
   threshold: null
+
+api:
+  host: 127.0.0.1
+  port: 8000
+  allowed_origins: [http://localhost:3000]
+  max_upload_bytes: 10000000
+  allowed_extensions: [.png, .jpg, .jpeg]
+  output_dir: outputs/inspections
+  checkpoint: null

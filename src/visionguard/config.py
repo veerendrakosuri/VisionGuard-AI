@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -41,6 +42,17 @@ class DecisionConfig:
 
 
 @dataclass(frozen=True)
+class ApiConfig:
+    host: str
+    port: int
+    allowed_origins: tuple[str, ...]
+    max_upload_bytes: int
+    allowed_extensions: tuple[str, ...]
+    output_dir: Path
+    checkpoint: Path | None
+
+
+@dataclass(frozen=True)
 class AppConfig:
     name: str
     seed: int
@@ -48,6 +60,7 @@ class AppConfig:
     model: ModelConfig
     runtime: RuntimeConfig
     decision: DecisionConfig
+    api: ApiConfig
 
 
 def _required(mapping: dict[str, Any], key: str) -> Any:
@@ -75,6 +88,12 @@ def load_config(path: str | Path) -> AppConfig:
     if len(size) != 2 or min(size) <= 0:
         raise ValueError("data.image_size must contain two positive integers")
     threshold = decision.get("threshold")
+    api = raw.get("api", {})
+    if threshold is not None and not 0 <= float(threshold) <= 1:
+        raise ValueError("decision.threshold must be in [0, 1]")
+
+    def env(name: str, default: Any) -> Any:
+        return os.getenv(f"VISIONGUARD_{name}", default)
 
     return AppConfig(
         name=str(_required(project, "name")),
@@ -100,4 +119,22 @@ def load_config(path: str | Path) -> AppConfig:
             log_level=str(runtime.get("log_level", "INFO")),
         ),
         decision=DecisionConfig(threshold=None if threshold is None else float(threshold)),
+        api=ApiConfig(
+            host=str(env("API_HOST", api.get("host", "127.0.0.1"))),
+            port=int(env("API_PORT", api.get("port", 8000))),
+            allowed_origins=tuple(api.get("allowed_origins", ["http://localhost:3000"])),
+            max_upload_bytes=int(env("MAX_UPLOAD_BYTES", api.get("max_upload_bytes", 10_000_000))),
+            allowed_extensions=tuple(
+                str(item).lower()
+                for item in api.get("allowed_extensions", [".png", ".jpg", ".jpeg"])
+            ),
+            output_dir=Path(
+                env("INSPECTION_OUTPUT_DIR", api.get("output_dir", "outputs/inspections"))
+            ),
+            checkpoint=(
+                Path(value)
+                if (value := env("CHECKPOINT", api.get("checkpoint")))
+                else None
+            ),
+        ),
     )

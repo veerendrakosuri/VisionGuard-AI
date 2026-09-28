@@ -53,6 +53,24 @@ def evaluate(
     print(serialized)
 
 
+@app.command("api")
+def serve_api(config_path: ConfigOption = Path("configs/patchcore_mvtecad2.yaml")) -> None:
+    """Run the VisionGuard HTTP inference service."""
+    import os
+
+    import uvicorn
+
+    config = load_config(config_path)
+    os.environ["VISIONGUARD_CONFIG"] = str(config_path.resolve())
+    uvicorn.run(
+        "visionguard.api.app:create_app",
+        factory=True,
+        host=config.api.host,
+        port=config.api.port,
+        log_level=config.runtime.log_level.lower(),
+    )
+
+
 @app.command()
 def predict(
     image: Annotated[Path, typer.Option("--image", "-i", exists=True, dir_okay=False)],

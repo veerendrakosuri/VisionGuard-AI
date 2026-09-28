@@ -92,3 +92,67 @@ on a suitable GPU should restore `coreset_sampling_ratio: 0.1` for the standard 
 
 The completed CPU baseline and its measured metrics are recorded in
 [`reports/week1_results.md`](reports/week1_results.md).
+
+## Week 2 — Inference API
+
+The FastAPI service loads the saved PatchCore model once during application startup and exposes
+it through versioned inspection endpoints. Uploaded files are size-, type-, filename-, and
+content-validated; server-generated inspection IDs prevent clients from controlling storage
+paths. Runtime uploads, results, and heatmaps remain under the ignored `outputs/` directory.
+
+```text
+Client -> upload validation -> shared PatchCore service -> result JSON + heatmap
+```
+
+Start the service:
+
+```powershell
+visionguard api --config configs/patchcore_mvtecad2.yaml
+```
+
+Swagger UI is available at `http://127.0.0.1:8000/docs`. Key endpoints are:
+
+- `GET /health` — process liveness
+- `GET /ready` — checkpoint/model readiness
+- `POST /api/v1/inspections` — submit a PNG or JPEG
+- `GET /api/v1/inspections/{inspection_id}` — retrieve a result
+- `GET /api/v1/inspections/{inspection_id}/heatmap` — retrieve the overlay
+
+PowerShell upload example:
+
+```powershell
+$response = Invoke-RestMethod -Method Post `
+  -Uri "http://127.0.0.1:8000/api/v1/inspections" `
+  -Form @{ image = Get-Item "path\to\sample.png" }
+$response
+```
+
+Equivalent curl example:
+
+```powershell
+curl.exe -F "image=@path\to\sample.png" http://127.0.0.1:8000/api/v1/inspections
+```
+
+The response contains the inspection ID, score, PASS/FAIL decision, inference time, model
+metadata, threshold source, and heatmap URL. With `decision.threshold: null`, the API labels the
+source `model_provisional`; this is deliberately not a production acceptance threshold.
+
+Configuration lives under the `api` and `decision` sections of the YAML file. Common deployment
+values can be overridden with the variables shown in `.env.example`. A real `.env` file remains
+ignored.
+
+### Docker
+
+Build with `docker build -t visionguard-api .`. The checkpoint is excluded from the image; mount
+the local artifacts directory and identify the checkpoint at runtime:
+
+```powershell
+docker run --rm -p 8000:8000 `
+  -v "${PWD}/artifacts:/app/artifacts:ro" `
+  -e VISIONGUARD_CHECKPOINT=/app/artifacts/Patchcore/MVTecAD2/sheet_metal/v1/weights/lightning/model.ckpt `
+  visionguard-api
+```
+
+If `/ready` is false, verify that the configured checkpoint exists and is readable. A 413 response
+means the upload exceeds `api.max_upload_bytes`; 415 means its extension or MIME type is not
+allowed. See [`reports/week2_results.md`](reports/week2_results.md) for measured validation.

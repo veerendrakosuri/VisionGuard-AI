@@ -1,0 +1,11 @@
+.git
+.venv
+data
+artifacts
+outputs
+work
+__pycache__
+.pytest_cache
+.env
+tests
+reports
