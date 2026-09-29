@@ -59,6 +59,12 @@ class DatabaseConfig:
 
 
 @dataclass(frozen=True)
+class SecurityConfig:
+    api_key: str | None
+    rate_limit_per_minute: int
+
+
+@dataclass(frozen=True)
 class AppConfig:
     name: str
     seed: int
@@ -68,6 +74,7 @@ class AppConfig:
     decision: DecisionConfig
     api: ApiConfig
     database: DatabaseConfig
+    security: SecurityConfig
 
 
 def _required(mapping: dict[str, Any], key: str) -> Any:
@@ -97,13 +104,14 @@ def load_config(path: str | Path) -> AppConfig:
     threshold = decision.get("threshold")
     api = raw.get("api", {})
     database = raw.get("database", {})
+    security = raw.get("security", {})
     if threshold is not None and not 0 <= float(threshold) <= 1:
         raise ValueError("decision.threshold must be in [0, 1]")
 
     def env(name: str, default: Any) -> Any:
         return os.getenv(f"VISIONGUARD_{name}", default)
 
-    return AppConfig(
+    config = AppConfig(
         name=str(_required(project, "name")),
         seed=int(project.get("seed", 42)),
         data=DataConfig(
@@ -151,4 +159,22 @@ def load_config(path: str | Path) -> AppConfig:
                 env("RETENTION_DAYS", database.get("retention_days", 30))
             ),
         ),
+        security=SecurityConfig(
+            api_key=(
+                str(value) if (value := env("API_KEY", security.get("api_key"))) else None
+            ),
+            rate_limit_per_minute=int(
+                env(
+                    "RATE_LIMIT_PER_MINUTE",
+                    security.get("rate_limit_per_minute", 60),
+                )
+            ),
+        ),
     )
+    if config.database.retention_days < 1:
+        raise ValueError("database.retention_days must be positive")
+    if config.security.rate_limit_per_minute < 1:
+        raise ValueError("security.rate_limit_per_minute must be positive")
+    if config.api.max_upload_bytes < 1:
+        raise ValueError("api.max_upload_bytes must be positive")
+    return config

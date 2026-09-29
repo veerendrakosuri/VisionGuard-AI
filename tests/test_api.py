@@ -85,6 +85,9 @@ def test_health_and_readiness(client: TestClient) -> None:
     with client:
         assert client.get("/health").json() == {"status": "ok"}
         assert client.get("/ready").json() == {"ready": True, "detail": None}
+        metrics = client.get("/metrics")
+        assert metrics.status_code == 200
+        assert "visionguard_model_ready" in metrics.text
 
 
 def test_upload_lookup_and_heatmap(client: TestClient) -> None:
@@ -162,3 +165,32 @@ def test_inference_failure_is_safe_and_cleans_upload(
         service.inspect(upload, "sample.png")
     assert error.value.status_code == 500
     assert not upload.exists()
+
+
+def test_api_key_protects_inspection_routes(api_config: AppConfig) -> None:
+    protected = replace(
+        api_config, security=replace(api_config.security, api_key="test-secret")
+    )
+    service = FakeInferenceService(protected)
+    with TestClient(create_app(protected, cast(Any, service))) as protected_client:
+        denied = protected_client.get("/api/v1/inspections/missing")
+        allowed = protected_client.get(
+            "/api/v1/inspections/missing", headers={"X-API-Key": "test-secret"}
+        )
+    assert denied.status_code == 401
+    assert denied.json()["error"]["code"] == "invalid_api_key"
+    assert allowed.status_code == 404
+
+
+def test_rate_limit_returns_retry_header(api_config: AppConfig) -> None:
+    limited = replace(
+        api_config,
+        security=replace(api_config.security, rate_limit_per_minute=1),
+    )
+    service = FakeInferenceService(limited)
+    with TestClient(create_app(limited, cast(Any, service))) as limited_client:
+        first = limited_client.get("/api/v1/inspections/missing")
+        second = limited_client.get("/api/v1/inspections/missing")
+    assert first.status_code == 404
+    assert second.status_code == 429
+    assert second.headers["Retry-After"] == "60"

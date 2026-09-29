@@ -38,6 +38,7 @@ def test_repository_history_filter_and_analytics(tmp_path: Path) -> None:
     assert summary.pass_count == 1
     assert summary.fail_count == 1
     assert summary.fail_rate == 0.5
+    assert len(repository.export_all()) == 2
 
 
 def test_repository_retention(tmp_path: Path) -> None:

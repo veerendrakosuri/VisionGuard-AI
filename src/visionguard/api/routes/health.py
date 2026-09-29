@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, Response
 
 from visionguard.api.dependencies import get_inference_service
 from visionguard.api.services.inference import InferenceService
@@ -18,3 +18,8 @@ def ready(
     service: Annotated[InferenceService, Depends(get_inference_service)],
 ) -> dict[str, object]:
     return {"ready": service.ready, "detail": service.error}
+
+
+@router.get("/metrics", include_in_schema=False)
+def metrics(request: Request) -> Response:
+    return Response(request.app.state.metrics.render(), media_type="text/plain; version=0.0.4")

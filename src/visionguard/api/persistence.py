@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Literal, cast
@@ -116,6 +117,13 @@ class InspectionRepository:
             )
             session.commit()
             return int(result.rowcount or 0)
+
+    def export_all(self) -> builtins.list[InspectionResult]:
+        with Session(self.engine) as session:
+            records = session.scalars(
+                select(InspectionRecord).order_by(InspectionRecord.created_at)
+            ).all()
+        return [self._to_result(record) for record in records]
 
     @staticmethod
     def _to_result(record: InspectionRecord) -> InspectionResult:

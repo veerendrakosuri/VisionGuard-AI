@@ -71,6 +71,45 @@ def serve_api(config_path: ConfigOption = Path("configs/patchcore_mvtecad2.yaml"
     )
 
 
+@app.command("db-backup")
+def database_backup(
+    config_path: ConfigOption = Path("configs/patchcore_mvtecad2.yaml"),
+    output: Annotated[Path, typer.Option("--output", "-o")] = Path(
+        "backups/inspections.json"
+    ),
+) -> None:
+    """Export inspection metadata to a portable JSON backup."""
+    from visionguard.api.persistence import InspectionRepository
+
+    config = load_config(config_path)
+    repository = InspectionRepository(config.database.url)
+    repository.initialize()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    payload = [json.loads(item.model_dump_json()) for item in repository.export_all()]
+    output.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(f"Backed up {len(payload)} inspection records to {output}")
+
+
+@app.command("db-restore")
+def database_restore(
+    backup: Annotated[Path, typer.Option("--backup", exists=True, dir_okay=False)],
+    config_path: ConfigOption = Path("configs/patchcore_mvtecad2.yaml"),
+) -> None:
+    """Merge inspection metadata from a VisionGuard JSON backup."""
+    from visionguard.api.models import InspectionResult
+    from visionguard.api.persistence import InspectionRepository
+
+    raw = json.loads(backup.read_text(encoding="utf-8"))
+    if not isinstance(raw, list):
+        raise typer.BadParameter("Backup must contain a JSON list")
+    config = load_config(config_path)
+    repository = InspectionRepository(config.database.url)
+    repository.initialize()
+    for item in raw:
+        repository.save(InspectionResult.model_validate(item))
+    print(f"Restored {len(raw)} inspection records from {backup}")
+
+
 @app.command()
 def predict(
     image: Annotated[Path, typer.Option("--image", "-i", exists=True, dir_okay=False)],

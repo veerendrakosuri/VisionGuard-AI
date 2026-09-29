@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: visionguard
       POSTGRES_USER: visionguard
-      POSTGRES_PASSWORD: change-me
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
     volumes:
       - visionguard-db:/var/lib/postgresql/data
     healthcheck:
@@ -17,14 +17,23 @@ services:
     build: .
     ports: ["8000:8000"]
     environment:
-      VISIONGUARD_DATABASE_URL: postgresql+psycopg://visionguard:change-me@database:5432/visionguard
+      VISIONGUARD_DATABASE_URL: postgresql+psycopg://visionguard:${POSTGRES_PASSWORD}@database:5432/visionguard
       VISIONGUARD_CHECKPOINT: /app/artifacts/Patchcore/MVTecAD2/sheet_metal/v1/weights/lightning/model.ckpt
+      VISIONGUARD_API_KEY: ${VISIONGUARD_API_KEY:?set VISIONGUARD_API_KEY}
     volumes:
       - ./artifacts:/app/artifacts:ro
       - ./outputs:/app/outputs
     depends_on:
       database:
         condition: service_healthy
+
+  dashboard:
+    build: ./dashboard
+    ports: ["3000:3000"]
+    environment:
+      VISIONGUARD_API_URL: http://api:8000
+      VISIONGUARD_API_KEY: ${VISIONGUARD_API_KEY:?set VISIONGUARD_API_KEY}
+    depends_on: [api]
 
 volumes:
   visionguard-db:

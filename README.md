@@ -183,8 +183,8 @@ npm run dev
 ```
 
 Open `http://localhost:3000`. The dashboard supports new uploads, live KPI cards, recent
-inspection history, and heatmap links. Set `NEXT_PUBLIC_API_URL` when the API is not on
-`http://127.0.0.1:8000`.
+inspection history, and heatmap links. Set the server-side `VISIONGUARD_API_URL` when the API is
+not on `http://127.0.0.1:8000`.
 
 For PostgreSQL, set a deployment secret rather than committing credentials:
 
@@ -196,3 +196,76 @@ $env:VISIONGUARD_DATABASE_URL = "postgresql+psycopg://visionguard:password@local
 placeholder password must be changed outside local development. PostgreSQL and Docker were not
 installed on the Week 3 development machine, so compatibility is implemented but only SQLite was
 executed locally. See [`reports/week3_results.md`](reports/week3_results.md).
+
+## Week 4 — Production readiness and release
+
+Week 4 adds defense-in-depth and repeatable operations around the completed MVP:
+
+- Optional `X-API-Key` authentication on every inspection/history/analytics route
+- Server-side dashboard proxy so the API key is not shipped in browser JavaScript
+- Per-client request limiting with HTTP 429 and `Retry-After`
+- Prometheus metrics at `GET /metrics`
+- Request IDs and security response headers
+- Alembic schema migrations
+- Portable inspection-metadata backup and restore commands
+- Non-root, health-checked API and dashboard containers
+- GitHub Actions backend and dashboard validation
+
+Health, readiness, and metrics remain public so an orchestrator can monitor the service. Set a
+long random API key in production:
+
+```powershell
+$env:VISIONGUARD_API_KEY = "replace-with-a-long-random-secret"
+visionguard api --config configs/patchcore_mvtecad2.yaml
+```
+
+The dashboard reads that key only on its server through `VISIONGUARD_API_KEY` and proxies browser
+requests through `/api/backend/*`.
+
+Run database migrations before a production release:
+
+```powershell
+$env:VISIONGUARD_DATABASE_URL = "postgresql+psycopg://user:password@host:5432/visionguard"
+alembic upgrade head
+```
+
+Back up or restore portable inspection metadata:
+
+```powershell
+visionguard db-backup --config configs/patchcore_mvtecad2.yaml `
+  --output backups/inspections.json
+visionguard db-restore --config configs/patchcore_mvtecad2.yaml `
+  --backup backups/inspections.json
+```
+
+The JSON backup covers database metadata, not heatmap image files. Back up the configured outputs
+volume separately. For PostgreSQL disaster recovery, also use provider snapshots or `pg_dump`.
+
+To launch the complete container stack, copy `.env.compose.example` to `.env`, replace both
+secrets, mount the Week 1 checkpoint under `artifacts/`, and run `docker compose up --build`.
+Docker was unavailable on the development machine, so the compose deployment is prepared but not
+claimed as executed.
+
+Release checks:
+
+```powershell
+python -m pytest
+python -m ruff check .
+python -m mypy src
+cd dashboard
+npm ci
+npm audit --audit-level=high
+npm run lint
+npm run build
+```
+
+For a live API latency smoke test:
+
+```powershell
+python scripts/smoke_api.py `
+  --image data/mvtecad2/sheet_metal/test_public/good/000_regular.png `
+  --requests 3 --api-key $env:VISIONGUARD_API_KEY
+```
+
+See [`reports/week4_results.md`](reports/week4_results.md) for final evidence, limitations, and the
+demonstration checklist.

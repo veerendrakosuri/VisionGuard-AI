@@ -9,12 +9,16 @@ import numpy as np
 from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import FileResponse
 
-from visionguard.api.dependencies import get_inference_service
+from visionguard.api.dependencies import get_inference_service, require_api_key
 from visionguard.api.errors import ApiError
 from visionguard.api.models import AnalyticsSummary, InspectionPage, InspectionResult
 from visionguard.api.services.inference import InferenceService
 
-router = APIRouter(prefix="/api/v1/inspections", tags=["inspections"])
+router = APIRouter(
+    prefix="/api/v1/inspections",
+    tags=["inspections"],
+    dependencies=[Depends(require_api_key)],
+)
 MIME_TYPES = {"image/png", "image/jpeg"}
 
 
