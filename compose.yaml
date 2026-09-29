@@ -1,0 +1,30 @@
+services:
+  database:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: visionguard
+      POSTGRES_USER: visionguard
+      POSTGRES_PASSWORD: change-me
+    volumes:
+      - visionguard-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U visionguard"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      VISIONGUARD_DATABASE_URL: postgresql+psycopg://visionguard:change-me@database:5432/visionguard
+      VISIONGUARD_CHECKPOINT: /app/artifacts/Patchcore/MVTecAD2/sheet_metal/v1/weights/lightning/model.ckpt
+    volumes:
+      - ./artifacts:/app/artifacts:ro
+      - ./outputs:/app/outputs
+    depends_on:
+      database:
+        condition: service_healthy
+
+volumes:
+  visionguard-db:

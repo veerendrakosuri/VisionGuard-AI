@@ -19,3 +19,6 @@ runs/
 outputs/*
 !outputs/.gitkeep
 work/
+node_modules/
+.next/
+*.tsbuildinfo

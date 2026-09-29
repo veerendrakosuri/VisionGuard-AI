@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 
 from visionguard.api.dependencies import get_inference_service
 from visionguard.api.errors import ApiError
-from visionguard.api.models import InspectionResult
+from visionguard.api.models import AnalyticsSummary, InspectionPage, InspectionResult
 from visionguard.api.services.inference import InferenceService
 
 router = APIRouter(prefix="/api/v1/inspections", tags=["inspections"])
@@ -44,6 +44,28 @@ def create_inspection(
     temporary = service.output_dir / f"upload-{uuid4()}{extension}"
     temporary.write_bytes(payload)
     return service.inspect(temporary, filename)
+
+
+@router.get("", response_model=InspectionPage)
+def list_inspections(
+    service: Annotated[InferenceService, Depends(get_inference_service)],
+    limit: int = 20,
+    offset: int = 0,
+    decision: str | None = None,
+) -> InspectionPage:
+    if not 1 <= limit <= 100 or offset < 0:
+        raise ApiError(400, "invalid_pagination", "Limit must be 1-100 and offset non-negative")
+    items, total = service.list(limit, offset, decision)
+    return InspectionPage(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.get("/analytics/summary", response_model=AnalyticsSummary)
+def analytics_summary(
+    service: Annotated[InferenceService, Depends(get_inference_service)],
+) -> AnalyticsSummary:
+    if service.repository is None:
+        raise ApiError(503, "database_not_ready", "Inspection database is unavailable")
+    return service.repository.analytics()
 
 
 @router.get("/{inspection_id}", response_model=InspectionResult)

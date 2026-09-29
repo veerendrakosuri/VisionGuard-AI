@@ -156,3 +156,43 @@ docker run --rm -p 8000:8000 `
 If `/ready` is false, verify that the configured checkpoint exists and is readable. A 413 response
 means the upload exceeds `api.max_upload_bytes`; 415 means its extension or MIME type is not
 allowed. See [`reports/week2_results.md`](reports/week2_results.md) for measured validation.
+
+## Week 3 — Inspection history and dashboard
+
+Week 3 adds SQL-backed inspection history, aggregated quality metrics, retention cleanup, and a
+Next.js operations dashboard. SQLAlchemy uses SQLite locally and the same repository supports
+PostgreSQL through `VISIONGUARD_DATABASE_URL`.
+
+New API queries:
+
+- `GET /api/v1/inspections?limit=20&offset=0&decision=FAIL`
+- `GET /api/v1/inspections/analytics/summary`
+
+The history endpoint supports pagination and optional PASS/FAIL filtering. Summary analytics
+include totals, pass/fail counts, failure rate, average anomaly score, and average inference time.
+Records older than `database.retention_days` are removed when the service starts.
+
+Run the API and dashboard in separate PowerShell windows:
+
+```powershell
+visionguard api --config configs/patchcore_mvtecad2.yaml
+
+cd dashboard
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000`. The dashboard supports new uploads, live KPI cards, recent
+inspection history, and heatmap links. Set `NEXT_PUBLIC_API_URL` when the API is not on
+`http://127.0.0.1:8000`.
+
+For PostgreSQL, set a deployment secret rather than committing credentials:
+
+```powershell
+$env:VISIONGUARD_DATABASE_URL = "postgresql+psycopg://visionguard:password@localhost:5432/visionguard"
+```
+
+`compose.yaml` provides a development PostgreSQL and API stack when Docker is available. Its
+placeholder password must be changed outside local development. PostgreSQL and Docker were not
+installed on the Week 3 development machine, so compatibility is implemented but only SQLite was
+executed locally. See [`reports/week3_results.md`](reports/week3_results.md).

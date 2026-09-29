@@ -9,3 +9,5 @@ __pycache__
 .env
 tests
 reports
+dashboard/node_modules
+dashboard/.next

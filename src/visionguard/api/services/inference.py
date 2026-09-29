@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from visionguard.api.errors import ApiError
 from visionguard.api.models import InspectionResult, ModelInfo
+from visionguard.api.persistence import InspectionRepository
 from visionguard.cli import _summarize
 from visionguard.config import AppConfig
 from visionguard.pipeline import find_checkpoint, require_anomalib
@@ -18,7 +19,9 @@ from visionguard.visualization import save_anomaly_overlay
 
 
 class InferenceService:
-    def __init__(self, config: AppConfig) -> None:
+    def __init__(
+        self, config: AppConfig, repository: InspectionRepository | None = None
+    ) -> None:
         self.config = config
         self.output_dir = config.api.output_dir
         self.checkpoint: Path | None = None
@@ -27,10 +30,14 @@ class InferenceService:
         self.ready = False
         self.error: str | None = None
         self._lock = threading.Lock()
+        self.repository = repository
 
     def initialize(self) -> None:
         """Load model weights once for reuse by all requests."""
         try:
+            if self.repository is not None:
+                self.repository.initialize()
+                self.repository.delete_expired(self.config.database.retention_days)
             checkpoint = self.config.api.checkpoint or find_checkpoint(
                 self.config.runtime.output_dir
             )
@@ -90,6 +97,8 @@ class InferenceService:
             (inspection_dir / "result.json").write_text(
                 result.model_dump_json(indent=2), encoding="utf-8"
             )
+            if self.repository is not None:
+                self.repository.save(result)
             return result
         except ApiError:
             raise
@@ -99,6 +108,10 @@ class InferenceService:
             image_path.unlink(missing_ok=True)
 
     def get(self, inspection_id: str) -> InspectionResult:
+        if self.repository is not None:
+            stored = self.repository.get(inspection_id)
+            if stored is not None:
+                return stored
         result = self.output_dir / inspection_id / "result.json"
         if not result.is_file():
             raise ApiError(404, "inspection_not_found", "Inspection was not found")
@@ -112,3 +125,16 @@ class InferenceService:
         if not path.is_file():
             raise ApiError(404, "heatmap_not_found", "Heatmap was not found")
         return path
+
+    def list(
+        self, limit: int, offset: int, decision: str | None
+    ) -> tuple[list[InspectionResult], int]:
+        if self.repository is None:
+            raise ApiError(503, "database_not_ready", "Inspection database is unavailable")
+        if decision not in (None, "PASS", "FAIL"):
+            raise ApiError(400, "invalid_decision", "Decision must be PASS or FAIL")
+        from typing import Literal, cast
+
+        return self.repository.list(
+            limit, offset, cast(Literal["PASS", "FAIL"] | None, decision)
+        )

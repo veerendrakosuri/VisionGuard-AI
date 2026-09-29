@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from visionguard import __version__
 from visionguard.api.errors import ApiError, api_error_handler
+from visionguard.api.persistence import InspectionRepository
 from visionguard.api.routes.health import router as health_router
 from visionguard.api.routes.inspections import router as inspections_router
 from visionguard.api.services.inference import InferenceService
@@ -23,7 +24,8 @@ def create_app(config: AppConfig | None = None, service: InferenceService | None
     settings = config or load_config(
         Path(os.getenv("VISIONGUARD_CONFIG", "configs/patchcore_mvtecad2.yaml"))
     )
-    inference = service or InferenceService(settings)
+    repository = InspectionRepository(settings.database.url) if service is None else None
+    inference = service or InferenceService(settings, repository)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:

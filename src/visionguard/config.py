@@ -53,6 +53,12 @@ class ApiConfig:
 
 
 @dataclass(frozen=True)
+class DatabaseConfig:
+    url: str
+    retention_days: int
+
+
+@dataclass(frozen=True)
 class AppConfig:
     name: str
     seed: int
@@ -61,6 +67,7 @@ class AppConfig:
     runtime: RuntimeConfig
     decision: DecisionConfig
     api: ApiConfig
+    database: DatabaseConfig
 
 
 def _required(mapping: dict[str, Any], key: str) -> Any:
@@ -89,6 +96,7 @@ def load_config(path: str | Path) -> AppConfig:
         raise ValueError("data.image_size must contain two positive integers")
     threshold = decision.get("threshold")
     api = raw.get("api", {})
+    database = raw.get("database", {})
     if threshold is not None and not 0 <= float(threshold) <= 1:
         raise ValueError("decision.threshold must be in [0, 1]")
 
@@ -135,6 +143,12 @@ def load_config(path: str | Path) -> AppConfig:
                 Path(value)
                 if (value := env("CHECKPOINT", api.get("checkpoint")))
                 else None
+            ),
+        ),
+        database=DatabaseConfig(
+            url=str(env("DATABASE_URL", database.get("url", "sqlite:///work/visionguard.db"))),
+            retention_days=int(
+                env("RETENTION_DAYS", database.get("retention_days", 30))
             ),
         ),
     )
