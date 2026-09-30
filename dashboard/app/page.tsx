@@ -50,18 +50,24 @@ export default function Dashboard() {
 
   async function inspect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const input = event.currentTarget.elements.namedItem("image") as HTMLInputElement;
+    const form = event.currentTarget;
+    const input = form.elements.namedItem("image") as HTMLInputElement;
     if (!input.files?.[0]) return;
     setBusy(true);
     setMessage("Inspecting image…");
     const body = new FormData();
     body.append("image", input.files[0]);
-    const response = await fetch(`${API}/api/v1/inspections`, { method: "POST", body });
-    setMessage(response.ok ? "Inspection completed" : "Inspection failed");
-    setBusy(false);
-    if (response.ok) {
-      event.currentTarget.reset();
-      await refresh();
+    try {
+      const response = await fetch(`${API}/api/v1/inspections`, { method: "POST", body });
+      setMessage(response.ok ? "Inspection completed" : "Inspection failed");
+      if (response.ok) {
+        form.reset();
+        await refresh();
+      }
+    } catch {
+      setMessage("Inspection failed · API unavailable");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -93,7 +99,10 @@ export default function Dashboard() {
             <td><span className={`badge ${item.decision.toLowerCase()}`}>{item.decision}</span></td><td>{item.filename}</td><td>{item.anomaly_score.toFixed(4)}</td><td>{item.inference_time_ms.toFixed(0)} ms</td><td>{new Date(item.created_at).toLocaleString()}</td><td><a href={`${API}${item.heatmap_url}`} target="_blank">View</a></td>
           </tr>)}</tbody></table></div>
       </section>
-      <footer>PatchCore · sheet_metal · Decisions are provisional until threshold calibration.</footer>
+      <footer>
+        PatchCore · sheet_metal · Calibrated threshold remains provisional until manufacturing
+        validation.
+      </footer>
     </main>
   );
 }

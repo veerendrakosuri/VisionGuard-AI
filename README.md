@@ -269,3 +269,40 @@ python scripts/smoke_api.py `
 
 See [`reports/week4_results.md`](reports/week4_results.md) for final evidence, limitations, and the
 demonstration checklist.
+
+## Final calibration and submission package
+
+The saved 1% PatchCore checkpoint was retained. A provisional threshold of
+`0.04933097958564758` was selected by maximum balanced accuracy using 19 normal validation images
+and 15 regular-view public anomaly images:
+
+```powershell
+visionguard calibrate-threshold `
+  --good-dir data\mvtecad2\sheet_metal\validation\good `
+  --bad-dir data\mvtecad2\sheet_metal\test_public\bad `
+  --good-pattern "*.png" --bad-pattern "*_regular.png" `
+  --scope "normal-validation-plus-public-anomaly-regular-views"
+```
+
+The fixed threshold was also evaluated on 95 excluded exposure/shift variants:
+
+```powershell
+visionguard evaluate-threshold --threshold 0.04933097958564758 `
+  --exclude-pattern "*_regular.png" `
+  --output artifacts\threshold_holdout_evaluation.json
+```
+
+This stress evaluation achieved 73.3% sensitivity but only 40.0% specificity. The threshold now
+detects the previously missed `bad/000_regular.png` sample, but neither the threshold nor the 1%
+model should control a manufacturing line. The transformed images share source parts with the
+calibration images, so these results are a robustness check rather than an independent estimate of
+generalization.
+
+Submission materials:
+
+- [`reports/final_validation.md`](reports/final_validation.md) records the final measured evidence.
+- [`docs/demo_script.md`](docs/demo_script.md) provides a concise live-demonstration sequence.
+- [`docs/cv_resume.md`](docs/cv_resume.md) contains accurate résumé and interview wording.
+- `deliverables/VisionGuard_AI_Project_Presentation_v3.pptx` is the editable local project
+  presentation. It is intentionally excluded from Git because it embeds MVTec AD 2 imagery and is
+  distributed separately under the dataset's CC BY-NC-SA 4.0 terms.

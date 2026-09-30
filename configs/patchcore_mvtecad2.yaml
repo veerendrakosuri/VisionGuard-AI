@@ -24,7 +24,9 @@ runtime:
   log_level: INFO
 
 decision:
-  threshold: null
+  # Provisional threshold calibrated on labeled public regular-view images.
+  # See reports/final_validation.md before using this as a quality-control gate.
+  threshold: 0.04933097958564758
 
 api:
   host: 127.0.0.1

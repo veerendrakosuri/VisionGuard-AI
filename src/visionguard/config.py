@@ -101,7 +101,7 @@ def load_config(path: str | Path) -> AppConfig:
     size = tuple(int(value) for value in _required(data, "image_size"))
     if len(size) != 2 or min(size) <= 0:
         raise ValueError("data.image_size must contain two positive integers")
-    threshold = decision.get("threshold")
+    threshold = os.getenv("VISIONGUARD_DECISION_THRESHOLD", decision.get("threshold"))
     api = raw.get("api", {})
     database = raw.get("database", {})
     security = raw.get("security", {})

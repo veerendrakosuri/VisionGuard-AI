@@ -14,7 +14,7 @@ from visionguard.api.models import InspectionResult, ModelInfo
 from visionguard.api.persistence import InspectionRepository
 from visionguard.cli import _summarize
 from visionguard.config import AppConfig
-from visionguard.pipeline import find_checkpoint, require_anomalib
+from visionguard.pipeline import load_trained_components
 from visionguard.visualization import save_anomaly_overlay
 
 
@@ -38,22 +38,7 @@ class InferenceService:
             if self.repository is not None:
                 self.repository.initialize()
                 self.repository.delete_expired(self.config.database.retention_days)
-            checkpoint = self.config.api.checkpoint or find_checkpoint(
-                self.config.runtime.output_dir
-            )
-            _, engine_cls, patchcore_cls = require_anomalib()
-            import anomalib
-            from torch.serialization import safe_globals
-
-            # The checkpoint was produced locally by Week 1. PyTorch 2.6+ requires
-            # Anomalib's precision enum to be explicitly allowlisted during loading.
-            with safe_globals([anomalib.PrecisionType]):
-                self.model = patchcore_cls.load_from_checkpoint(str(checkpoint))
-            self.engine = engine_cls(
-                accelerator=self.config.runtime.accelerator,
-                devices=self.config.runtime.devices,
-                default_root_dir=self.config.runtime.output_dir,
-            )
+            checkpoint, self.model, self.engine = load_trained_components(self.config)
             self.checkpoint = checkpoint
             self.output_dir.mkdir(parents=True, exist_ok=True)
             self.ready = True

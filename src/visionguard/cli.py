@@ -10,7 +10,12 @@ import typer
 
 from visionguard.config import AppConfig, load_config
 from visionguard.logging import configure_logging
-from visionguard.pipeline import build_components, find_checkpoint, require_anomalib
+from visionguard.pipeline import (
+    build_components,
+    find_checkpoint,
+    load_trained_components,
+    require_anomalib,
+)
 from visionguard.visualization import save_anomaly_overlay
 
 app = typer.Typer(help="VisionGuard AI anomaly detection commands.", no_args_is_help=True)
@@ -51,6 +56,115 @@ def evaluate(
     output.write_text(serialized, encoding="utf-8")
     logger.info("Evaluation metrics saved to %s", output)
     print(serialized)
+
+
+@app.command("calibrate-threshold")
+def calibrate_threshold(
+    good_dir: Annotated[Path, typer.Option("--good-dir", exists=True, file_okay=False)] = Path(
+        "data/mvtecad2/sheet_metal/test_public/good"
+    ),
+    bad_dir: Annotated[Path, typer.Option("--bad-dir", exists=True, file_okay=False)] = Path(
+        "data/mvtecad2/sheet_metal/test_public/bad"
+    ),
+    pattern: Annotated[str, typer.Option("--pattern")] = "*_regular.png",
+    good_pattern: Annotated[str | None, typer.Option("--good-pattern")] = None,
+    bad_pattern: Annotated[str | None, typer.Option("--bad-pattern")] = None,
+    scope: Annotated[str, typer.Option("--scope")] = "provisional_labeled_calibration",
+    config_path: ConfigOption = Path("configs/patchcore_mvtecad2.yaml"),
+    output: Annotated[Path, typer.Option("--output", "-o")] = Path(
+        "artifacts/threshold_calibration.json"
+    ),
+) -> None:
+    """Calibrate a provisional threshold from explicitly labeled image folders."""
+    from visionguard.calibration import score_images, select_threshold, serialize_metrics
+
+    config, logger = _setup(config_path)
+    good_paths = sorted(good_dir.glob(good_pattern or pattern))
+    bad_paths = sorted(bad_dir.glob(bad_pattern or pattern))
+    if not good_paths or not bad_paths:
+        raise typer.BadParameter("Both folders must contain files matching --pattern")
+    checkpoint, model, engine = load_trained_components(config)
+    logger.info(
+        "Calibrating threshold checkpoint=%s normal=%d anomalous=%d",
+        checkpoint,
+        len(good_paths),
+        len(bad_paths),
+    )
+    scores = score_images(engine, model, good_paths, label=0)
+    scores.extend(score_images(engine, model, bad_paths, label=1))
+    selected = select_threshold(scores)
+    payload = {
+        "method": "maximum_balanced_accuracy",
+        "scope": scope,
+        "pattern": pattern,
+        "good_pattern": good_pattern or pattern,
+        "bad_pattern": bad_pattern or pattern,
+        "normal_samples": len(good_paths),
+        "anomalous_samples": len(bad_paths),
+        "checkpoint": str(checkpoint),
+        "metrics": serialize_metrics(selected),
+        "scores": [item.__dict__ for item in scores],
+    }
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(json.dumps(payload["metrics"], indent=2))
+    print(f"Calibration result saved to {output}")
+
+
+@app.command("evaluate-threshold")
+def evaluate_decision_threshold(
+    threshold: Annotated[float, typer.Option("--threshold", min=0.0, max=1.0)],
+    good_dir: Annotated[Path, typer.Option("--good-dir", exists=True, file_okay=False)] = Path(
+        "data/mvtecad2/sheet_metal/test_public/good"
+    ),
+    bad_dir: Annotated[Path, typer.Option("--bad-dir", exists=True, file_okay=False)] = Path(
+        "data/mvtecad2/sheet_metal/test_public/bad"
+    ),
+    pattern: Annotated[str, typer.Option("--pattern")] = "*.png",
+    exclude_pattern: Annotated[str | None, typer.Option("--exclude-pattern")] = None,
+    config_path: ConfigOption = Path("configs/patchcore_mvtecad2.yaml"),
+    output: Annotated[Path, typer.Option("--output", "-o")] = Path(
+        "artifacts/threshold_evaluation.json"
+    ),
+) -> None:
+    """Evaluate one fixed threshold without selecting it from the evaluated images."""
+    from visionguard.calibration import evaluate_threshold, score_images, serialize_metrics
+
+    config, logger = _setup(config_path)
+
+    def selected_paths(directory: Path) -> list[Path]:
+        excluded = set(directory.glob(exclude_pattern)) if exclude_pattern else set()
+        return [path for path in sorted(directory.glob(pattern)) if path not in excluded]
+
+    good_paths = selected_paths(good_dir)
+    bad_paths = selected_paths(bad_dir)
+    if not good_paths or not bad_paths:
+        raise typer.BadParameter("Both folders must contain selected evaluation images")
+    checkpoint, model, engine = load_trained_components(config)
+    logger.info(
+        "Evaluating threshold=%f checkpoint=%s normal=%d anomalous=%d",
+        threshold,
+        checkpoint,
+        len(good_paths),
+        len(bad_paths),
+    )
+    scores = score_images(engine, model, good_paths, label=0)
+    scores.extend(score_images(engine, model, bad_paths, label=1))
+    metrics = evaluate_threshold(scores, threshold)
+    payload = {
+        "method": "fixed_threshold_evaluation",
+        "pattern": pattern,
+        "exclude_pattern": exclude_pattern,
+        "normal_samples": len(good_paths),
+        "anomalous_samples": len(bad_paths),
+        "checkpoint": str(checkpoint),
+        "metrics": serialize_metrics(metrics),
+        "scores": [item.__dict__ for item in scores],
+    }
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(json.dumps(payload["metrics"], indent=2))
+    print(f"Threshold evaluation saved to {output}")
 
 
 @app.command("api")

@@ -23,3 +23,9 @@ node_modules/
 .next/
 *.tsbuildinfo
 backups/
+.presentation-build/
+.codex-finalizer/
+.chart-data-*/
+deliverables/VisionGuard_AI_Project_Presentation.pptx
+deliverables/VisionGuard_AI_Project_Presentation_v2.pptx
+deliverables/VisionGuard_AI_Project_Presentation_v3.pptx
